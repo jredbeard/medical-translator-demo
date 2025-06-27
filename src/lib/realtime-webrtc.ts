@@ -1,3 +1,5 @@
+// unused - due to CORS issues with OpenAI Realtime API at time of testing
+
 interface RealtimeConfig {
   ephemeralKey: string
   sessionId: string
@@ -53,9 +55,10 @@ export class RealtimeWebRTC {
       await this.pc.setLocalDescription(offer)
 
       const baseUrl = "https://api.openai.com/v1/realtime"
-      const model = "gpt-4o-transcribe" // model must match that of the ephemeral key
+      const model = "gpt-4o-transcribe" // causing CORS issues adding this? weird - it is like this in their docs
 
-      const sdpResponse = await fetch(`${baseUrl}?model=${model}`, {
+      //const sdpResponse = await fetch(`${baseUrl}?model=${model}`, {
+      const sdpResponse = await fetch(`${baseUrl}`, {
         method: "POST",
         body: offer.sdp,
         headers: {

@@ -1,10 +1,39 @@
 # Medical Translation App
 
-A real-time hands-free medical translation application built with Next.js, Tailwind CSS, Prisma, PostgreSQL, and OpenAI's Realtime API with WebRTC. The app provides instant speech-to-text, translation, and text-to-speech capabilities for medical consultations between English-speaking doctors and Spanish-speaking patients.
+A real-time hands-free medical translation application built with Next.js, Tailwind CSS, Prisma, PostgreSQL, and OpenAI's Whisper API. The app provides instant speech-to-text, translation, and text-to-speech capabilities for medical consultations between English-speaking doctors and Spanish-speaking patients.
+
+This is a demo / hackathon app.
+
+# Project Notes
+
+For this project I chose to use Next.js, Prisma (postgres), and Neon for a quick-to-spin-up postgres db. I chose Next.js for the ease of deployment on vercel - there's no need to run a separate back end, but there are some design considerations to be made because of the serverless API in Next.js. For scalability, you can in fact run Next.js in a docker container on any cloud platform - it isn't always the best framework of choice though for large scale apps though, imo.
+
+Since this uses serverless API's, we needed endpoints to start and end sessions, as well as one to fetch sessions and history. We'll also need one for fetching a realtime ephemeral key for OpenAI, and, translating transcribed text, and text-to-speech.
+
+Upon ending a session, a summary is generated, displayed, and saved to the database.
+
+I started out trying OpenAI's realtime API to simply transcribe text in individual utterances using WebRTC browser side.
+
+Interestingly, the OpenAI realtime API did not seem to currently work from localhost due to CORS issues (even with their own demo app) - this made local testing not possible, and, forced me to deploy early to vercel in order to test this piece (I thought maybe they were just blocking http not https traffic via CORS headers). After doing some searching, it seems this is a widespread issue and seems to happen from production apps since it's still in beta. Given this, I backed out of this approach and came up with another one in order to get this shipped in time.
+
+I decided to still use WebRTC (but with VAD) so that I could detect utterances. It could still work in a way without this, but, then we'd have to just send chunks to the regular OpenAI API to translate in a few second bursts probably. This also made it necessary to create a new transcribe API endpoint to use as well. This felt like the best fallback solution.
+
+I am using OpenAI's whisper to simply transcribe text in the individual utterances. Once the message is obtained, it is then sent through a separate LLM request using an API endpoint to do the translation (and detect the participant). I'm having it return JSON here. In a larger scale production application, it might make sense to use a library like BAML for structured responses - but this is fine for this application. Finally, the translated text is sent to a tts api endpoint and then replayed for the user.
+
+I believe that we could do this in fewer requests - but, given the time constraints for this hackathon, I landed on this solution.
+
+The summary is generated in SOAP format also in JSON.
+
+The approach admittedly has some bugs, but, is close.
+
+Due to the time constraints and having to completely shift gears, I did not hit these points:
+
+* websocket / actions / scheduler implementation
+* "repeat that"
 
 ## Features
 
-- **Real-time Speech Processing**: Uses OpenAI's Realtime API with WebRTC for instant speech capture and processing
+- **Local Audio Recording**: Uses browser-based audio recording with Voice Activity Detection (VAD) for real-time speech capture
 - **Individual Utterance Detection**: Captures and processes speech in real-time as individual utterances
 - **Bidirectional Translation**: Automatically translates between English and Spanish
 - **Language Auto-Detection**: Automatically detects the source language and translates accordingly
@@ -13,22 +42,22 @@ A real-time hands-free medical translation application built with Next.js, Tailw
 - **SOAP Note Generation**: Automatically generates SOAP (Subjective, Objective, Assessment, Plan) summaries
 - **Session History**: View and access previous translation sessions
 - **Modern Dark UI**: Beautiful, responsive interface optimized for both mobile and desktop
-- **Secure API Keys**: Uses ephemeral keys to keep your OpenAI API key secure
+- **Secure API Keys**: Uses your OpenAI API key directly for transcription and translation
 
 ## Tech Stack
 
 - **Frontend**: Next.js, React, TypeScript, Tailwind CSS
 - **Backend**: Next.js API Routes, Prisma ORM
 - **Database**: PostgreSQL
-- **AI Services**: OpenAI Realtime API, GPT-4o
-- **Real-time Communication**: WebRTC, RTCDataChannel
+- **AI Services**: OpenAI Whisper API, GPT-4o
+- **Audio Processing**: Web Audio API, MediaRecorder API, Voice Activity Detection
 - **Deployment**: Vercel (serverless)
 
 ## Prerequisites
 
 - Node.js 18+ 
 - npm or yarn
-- OpenAI API key with access to Realtime API
+- OpenAI API key with access to Whisper API
 - Neon PostgreSQL database
 
 ## Installation
@@ -109,22 +138,24 @@ The app will be available at `http://localhost:3000`
 ## Architecture
 
 ### Frontend
-- **WebRTC Client**: Custom WebRTC implementation for OpenAI Realtime API
-- **RTCDataChannel**: Real-time communication channel for events
-- **Audio Processing**: Direct microphone access and audio streaming
+- **AudioRecorder**: Custom audio recording implementation with Voice Activity Detection
+- **Web Audio API**: Real-time audio processing and analysis
+- **MediaRecorder API**: Audio capture and chunking
 - **State Management**: React hooks for session and message state
 - **UI Components**: Tailwind CSS for responsive, modern interface
 
 ### Backend
 - **API Routes**: Next.js serverless functions for session management
 - **Database**: Prisma ORM with Neon PostgreSQL
-- **Security**: Ephemeral key generation for secure API access
+- **Transcription**: OpenAI Whisper API for speech-to-text
+- **Translation**: OpenAI GPT-4o for text translation
+- **TTS**: OpenAI TTS API for text-to-speech
 
-### Real-time Processing
-- **WebRTC**: Direct browser-to-OpenAI connection for audio streaming
-- **RTCDataChannel**: Real-time event communication
-- **SDP Protocol**: Session Description Protocol for connection establishment
-- **Utterance Detection**: Individual speech segment processing
+### Audio Processing
+- **Voice Activity Detection**: Browser-based VAD using Web Audio API
+- **Utterance Detection**: Automatic detection of speech start/stop
+- **Audio Chunking**: Processing individual utterances
+- **Format Support**: WebM audio format for optimal browser compatibility
 
 ## Database Schema
 
@@ -170,10 +201,19 @@ The app will be available at `http://localhost:3000`
 
 Make sure to set these in your Vercel dashboard:
 - `DATABASE_URL`: Your Neon PostgreSQL connection string
-- `OPENAI_API_KEY`: Your OpenAI API key with Realtime API access
+- `OPENAI_API_KEY`: Your OpenAI API key with Whisper API access
 - `NEXTAUTH_SECRET`: A secure random string
 - `NEXTAUTH_URL`: Your production domain
 
+## Browser Support
+
+The app requires modern browsers with support for:
+- Web Audio API
+- MediaRecorder API
+- getUserMedia API
+- ES6+ features
+
+Supported browsers:
 - Chrome 66+
 - Firefox 60+
 - Safari 14+

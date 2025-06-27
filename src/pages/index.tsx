@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Mic, MicOff, Play, Square, History, X } from 'lucide-react'
-import { RealtimeWebRTC } from '../lib/realtime-webrtc'
+import { AudioRecorder } from '../lib/audio-recorder'
 
 interface Message {
   id: string
@@ -40,7 +40,7 @@ export default function MedicalTranslationApp() {
   const [error, setError] = useState<string | null>(null)
   const [isConnected, setIsConnected] = useState(false)
 
-  const realtimeRef = useRef<RealtimeWebRTC | null>(null)
+  const audioRecorderRef = useRef<AudioRecorder | null>(null)
 
   useEffect(() => {
     fetchSessions()
@@ -94,9 +94,9 @@ export default function MedicalTranslationApp() {
 
     try {
       // Disconnect from Realtime API
-      if (realtimeRef.current) {
-        realtimeRef.current.disconnect()
-        realtimeRef.current = null
+      if (audioRecorderRef.current) {
+        audioRecorderRef.current.stop()
+        audioRecorderRef.current = null
         setIsConnected(false)
       }
 
@@ -131,26 +131,8 @@ export default function MedicalTranslationApp() {
         return
       }
 
-      // Get ephemeral key for Realtime API
-      const keyResponse = await fetch('/api/realtime-key', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ sessionId: currentSessionId }),
-      })
-
-      console.log('Key response:', keyResponse)
-
-      if (!keyResponse.ok) {
-        throw new Error('Failed to get ephemeral key')
-      }
-
-      const { ephemeralKey } = await keyResponse.json()
-
-      // Initialize WebRTC Realtime API client
-      realtimeRef.current = new RealtimeWebRTC({
-        ephemeralKey,
+      // Initialize AudioRecorder
+      audioRecorderRef.current = new AudioRecorder({
         sessionId: currentSessionId,
         onTranscript: async (text: string, language: string) => {
           console.log('Transcript received:', text, language)
@@ -198,7 +180,6 @@ export default function MedicalTranslationApp() {
                 body: JSON.stringify({
                   text: translation,
                   language: participant === 'doctor' ? 'es' : 'en',
-                  // Optionally, you can set a specific voice here
                 }),
               })
               if (ttsResponse.ok) {
@@ -217,53 +198,39 @@ export default function MedicalTranslationApp() {
             console.error('Error translating, saving, or playing message:', error)
           }
         },
-        onTranslation: async (originalText: string, translatedText: string, originalLanguage: string) => {
-          console.log('Translation received:', originalText, '->', translatedText)
-          
-          // Update the last message with the translation
-          if (messages.length > 0) {
-            const lastMessage = messages[messages.length - 1]
-            const updatedMessage = {
-              ...lastMessage,
-              translatedText: translatedText,
-              speaker: originalLanguage === 'en' ? 'Doctor' : 'Patient',
-            }
-            
-            setMessages(prev => prev.map((msg, index) => 
-              index === prev.length - 1 ? updatedMessage : msg
-            ))
-          }
-        },
         onError: (error: string) => {
-          console.error('Realtime API error:', error)
+          console.error('Audio recording error:', error)
           setError(error)
         },
-        onClose: () => {
-          console.log('Realtime API connection closed')
+        onStart: () => {
+          console.log('Audio recording started')
+          setIsConnected(true)
+          setIsRecording(true)
+          setError(null)
+        },
+        onStop: () => {
+          console.log('Audio recording stopped')
           setIsConnected(false)
           setIsRecording(false)
         },
       })
 
-      // Connect to Realtime API
-      await realtimeRef.current.connect()
-      setIsConnected(true)
-      setIsRecording(true)
-      setError(null)
+      // Start audio recording
+      await audioRecorderRef.current.start()
 
-      console.log('WebRTC Realtime API connected and ready for speech processing')
+      console.log('Audio recording connected and ready for speech processing')
 
     } catch (error) {
       console.error('Error starting recording:', error)
-      setError('Failed to start Realtime API connection')
+      setError('Failed to start audio recording')
       setIsRecording(false)
     }
   }
 
   const stopRecording = () => {
-    if (realtimeRef.current) {
-      realtimeRef.current.disconnect()
-      realtimeRef.current = null
+    if (audioRecorderRef.current) {
+      audioRecorderRef.current.stop()
+      audioRecorderRef.current = null
       setIsRecording(false)
       setIsConnected(false)
       console.log('Recording stopped')
@@ -283,7 +250,7 @@ export default function MedicalTranslationApp() {
           <div className="flex items-center space-x-2">
             <div className="flex items-center space-x-2 text-green-400">
               <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-              <span className="text-sm">Realtime API</span>
+              <span className="text-sm">Audio Recording</span>
             </div>
             <button
               onClick={() => setShowHistory(!showHistory)}
@@ -368,14 +335,14 @@ export default function MedicalTranslationApp() {
                 </div>
               )}
 
-              {/* Realtime API Info */}
+              {/* Audio Recording Info */}
               <div className="mt-4 p-3 bg-blue-900 border border-blue-700 rounded-lg">
                 <p className="text-blue-200">
-                  <strong>OpenAI Realtime API:</strong> This app uses the OpenAI Realtime API with WebRTC 
-                  for real-time speech processing. Individual utterances are captured and translated instantly.
+                  <strong>Local Audio Recording:</strong> This app uses local audio recording with Voice Activity Detection (VAD) 
+                  to capture individual utterances. Audio is sent to OpenAI's Whisper API for transcription, then translated and played back.
                   {isConnected && (
                     <span className="block mt-2 text-green-300">
-                      ✓ Connected to Realtime API - Ready for speech
+                      ✓ Audio recording active - Ready for speech
                     </span>
                   )}
                 </p>

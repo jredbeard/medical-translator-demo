@@ -1,3 +1,5 @@
+// unused - due to CORS issues with OpenAI Realtime API at time of testing
+
 import { NextApiRequest, NextApiResponse } from 'next'
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
