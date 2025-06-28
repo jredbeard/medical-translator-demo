@@ -25,6 +25,8 @@ model Session {
   objective  String?
   assessment String?
   plan       String?
+  summary    String?
+  action     String?
   
   // Messages in this session
   messages Message[]

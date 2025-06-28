@@ -6,7 +6,7 @@ This is a demo / hackathon app.
 
 # Project Notes
 
-For this project I chose to use Next.js, Prisma (postgres), and Neon for a quick-to-spin-up postgres db. I chose Next.js for the ease of deployment on vercel - there's no need to run a separate back end, but there are some design considerations to be made because of the serverless API in Next.js. For scalability, you can in fact run Next.js in a docker container on any cloud platform - it isn't always the best framework of choice though for large scale apps though, imo.
+For this project I chose to use Next.js, Prisma (postgres), and Neon for a quick-to-spin-up postgres db. I chose Next.js for the ease of deployment on vercel - there's no need to run a separate back end, but there are some design considerations to be made because of the serverless API in Next.js. For scalability, you can in fact run Next.js in a docker container on any cloud platform - it maybe isn't always the best framework of choice though for large scale apps though, imo. It's an excellent tool to quickly mock up apps in either case.
 
 Since this uses serverless API's, we needed endpoints to start and end sessions, as well as one to fetch sessions and history. We'll also need one for fetching a realtime ephemeral key for OpenAI, and, translating transcribed text, and text-to-speech.
 
@@ -16,9 +16,11 @@ I started out trying OpenAI's realtime API to simply transcribe text in individu
 
 Interestingly, the OpenAI realtime API did not seem to currently work from localhost due to CORS issues (even with their own demo app) - this made local testing not possible, and, forced me to deploy early to vercel in order to test this piece (I thought maybe they were just blocking http not https traffic via CORS headers). After doing some searching, it seems this is a widespread issue and seems to happen from production apps since it's still in beta. Given this, I backed out of this approach and came up with another one in order to get this shipped in time.
 
-I decided to still use WebRTC (but with VAD) so that I could detect utterances. It could still work in a way without this, but, then we'd have to just send chunks to the regular OpenAI API to translate in a few second bursts probably. This also made it necessary to create a new transcribe API endpoint to use as well. This felt like the best fallback solution.
+I decided to still try to use WebRTC (but with VAD) so that I could detect utterances. It could still work in a way without this, but, then we'd have to just send chunks to the regular OpenAI API to translate in a few second bursts probably. This also made it necessary to create a new transcribe API endpoint to use as well. This felt like the next best fallback solution.
 
-I am using OpenAI's whisper to simply transcribe text in the individual utterances. Once the message is obtained, it is then sent through a separate LLM request using an API endpoint to do the translation (and detect the participant). I'm having it return JSON here. In a larger scale production application, it might make sense to use a library like BAML for structured responses - but this is fine for this application. Finally, the translated text is sent to a tts api endpoint and then replayed for the user.
+After troubleshooting some bugs with a manual VAD detection, I decided to implement the simpler fixed-chunk-size with some detection for silence to string together into a single utterance. Obviously this would be much better (and probably easier) with the OpenAI realtime API, as, these problems are already solved with that solution. I left the libraries and API endpoints intact for the other solutions. The realtime API one may actually work fine when their CORS issues are resolved - the realtime-key endpoint does in fact get a proper ephemeral key, it's just that the SDP response returns as not ok (oddly it's a JSON object that contains text and explains "cors issue" - weird, it isn't the usual browser CORS message you'd receive).
+
+I am using OpenAI's whisper to simply transcribe text in the individual utterances. Once the message is obtained, it is then sent through a separate LLM request using an API endpoint to do the translation (and detect the participant). I'm having it return JSON here. In a larger scale production application, it might make sense to use a library like BAML for structured responses - but this should be absolutely fine for this demo. Finally, the translated text is sent to a tts api endpoint and then replayed for the user.
 
 I believe that we could do this in fewer requests - but, given the time constraints for this hackathon, I landed on this solution.
 
@@ -29,7 +31,9 @@ The approach admittedly has some bugs, but, is close.
 Due to the time constraints and having to completely shift gears, I did not hit these points:
 
 * websocket / actions / scheduler implementation
-* "repeat that"
+* "repeat that" - not possible with this type of setup afaik
+
+BELOW IS AI GENERATED README:
 
 ## Features
 

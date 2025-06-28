@@ -35,18 +35,23 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             role: 'system',
             content: `You are a medical professional. Analyze the following conversation and create a SOAP note summary.
             If there's not any part the conversation that is relevant to the SOAP note, leave it blank. Still return the JSON format.
-            SOAP format:
+            If there is an action of intent (schedule a follow up, send lab order, etc), include it in the plan.
+            SOAP format along with a general summary of the conversation:
             - Subjective: Patient's symptoms and concerns
             - Objective: Observable findings and vital signs
             - Assessment: Diagnosis and clinical impression
             - Plan: Treatment plan and follow-up
+            - Summary: A general summary of the conversation
+            - Action: If there is an action of intent (schedule a follow up, send lab order, etc), include it in the plan.
             
-            Respond in JSON format:
+            Respond in JSON format with no markdown code fencing. Do not include any other text in your response:
             {
               "subjective": "...",
               "objective": "...", 
               "assessment": "...",
-              "plan": "..."
+              "plan": "...",
+              "summary": "...",
+              "action": "..."
             }`
           },
           {
@@ -54,20 +59,47 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             content: conversationText
           }
         ],
+        response_format: { type: 'json_object' },
         temperature: 0.1,
       })
 
-      const soapText = soapSummary.choices[0]?.message?.content || ''
-      let soapData
+      const content = soapSummary.choices[0].message.content;
+
+      console.log('soapSummary', soapSummary);
+      console.log('content', content);
+
+      let soapData: {
+        subjective: string;
+        objective: string;
+        assessment: string;
+        plan: string;
+        summary: string;
+        action: string;
+      };
+
+      const fallback = {
+        subjective: 'N/A',
+        objective: 'N/A',
+        assessment: 'N/A',
+        plan: 'N/A',
+        summary: 'N/A',
+        action: 'N/A'
+      };
+
       try {
-        soapData = JSON.parse(soapText)
-      } catch {
+        const parsed = JSON.parse(content || '{}');
+        console.log('parsed', parsed);
         soapData = {
-          subjective: 'Unable to generate summary',
-          objective: '',
-          assessment: '',
-          plan: ''
-        }
+          subjective: parsed.subjective || 'N/A',
+          objective: parsed.objective || 'N/A',
+          assessment: parsed.assessment || 'N/A',
+          plan: parsed.plan || 'N/A',
+          summary: parsed.summary || 'N/A',
+          action: parsed.action || 'N/A'
+        };
+        console.log('soapData', soapData);
+      } catch {
+        soapData = fallback;
       }
 
       // Update session with SOAP summary and mark as completed
@@ -79,6 +111,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           objective: soapData.objective,
           assessment: soapData.assessment,
           plan: soapData.plan,
+          action: soapData.action,
+          summary: soapData.summary
         },
       })
 

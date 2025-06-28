@@ -15,6 +15,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
+  console.log('Transcribe API called');
+
   try {
     const { audio, sessionId } = req.body;
 
@@ -36,7 +38,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     try {
       const transcription = await openai.audio.transcriptions.create({
         file: fs.createReadStream(tempFilePath),
-        model: 'gpt-4o-transcribe', // or 'whisper-1'
+        model: 'gpt-4o-transcribe', // or 'whisper-1',
+        prompt: 'Your are a transcriber. Please transcribe. Do not include any other text in your response. If there is no speech, return an empty string.'
       });
       fs.unlinkSync(tempFilePath);
       return res.status(200).json({ transcription: transcription.text });
