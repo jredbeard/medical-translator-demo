@@ -42,7 +42,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             - Assessment: Diagnosis and clinical impression
             - Plan: Treatment plan and follow-up
             - Summary: A general summary of the conversation
-            - Action: If there is an action of intent (schedule a follow up, send lab order, etc), include it in the plan.
+            - Action: If there are actions of intent (e.g., schedule a follow-up, send lab order), return them in a JSON array under the key ‘actions’ using this format:
+            {
+              "actions": [
+                { "type": "schedule_followup", "details": "next week" },
+                { "type": "send_lab_order", "details": "blood panel" }
+              ]
+            }
             
             Respond in JSON format with no markdown code fencing. Do not include any other text in your response:
             {
@@ -51,7 +57,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               "assessment": "...",
               "plan": "...",
               "summary": "...",
-              "action": "..."
+              "actions": [ { "type": "...", "details": "..." } ]
             }`
           },
           {
@@ -74,7 +80,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         assessment: string;
         plan: string;
         summary: string;
-        action: string;
+        actions: { type: string; details: string }[];
       };
 
       const fallback = {
@@ -83,21 +89,42 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         assessment: 'N/A',
         plan: 'N/A',
         summary: 'N/A',
-        action: 'N/A'
+        actions: []
       };
 
       try {
         const parsed = JSON.parse(content || '{}');
+        const actions = parsed.actions || [];
         console.log('parsed', parsed);
+        console.log('parsed actions', JSON.stringify(actions));
         soapData = {
           subjective: parsed.subjective || 'N/A',
           objective: parsed.objective || 'N/A',
           assessment: parsed.assessment || 'N/A',
           plan: parsed.plan || 'N/A',
           summary: parsed.summary || 'N/A',
-          action: parsed.action || 'N/A'
+          actions: parsed.actions || []
         };
         console.log('soapData', soapData);
+        for (const action of actions) {
+          if (!action.type) continue; // skip invalid actions
+          try {
+            const webhookResponse = await fetch('https://webhook.site/YOUR-UNIQUE-URL', { // just an example
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                sessionId,
+                actionType: action.type,
+                actionDetails: action.details || '',
+                timestamp: new Date().toISOString(),
+              }),
+            });
+            console.log(`Tool executed: ${action.type}`, webhookResponse.status);
+          } catch (webhookError) {
+            console.error(`Error executing tool ${action.type}:`, webhookError);
+          }
+        }
+
       } catch {
         soapData = fallback;
       }
@@ -111,7 +138,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           objective: soapData.objective,
           assessment: soapData.assessment,
           plan: soapData.plan,
-          action: soapData.action,
+          action: JSON.stringify(soapData.actions), // would be better to store as JSON in the DB, but this is just for example
+          // probably a "successfully executed actions" or something would be good too I suppose, but maybe that's tracked elsewhere
           summary: soapData.summary
         },
       })
