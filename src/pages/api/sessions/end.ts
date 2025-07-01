@@ -108,8 +108,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         console.log('soapData', soapData);
         for (const action of actions) {
           if (!action.type) continue; // skip invalid actions
+          // check if we have a url in the environment variable for webhook
+          const webhookUrl = process.env.WEBHOOK_URL;
+          if (!webhookUrl) {
+            console.error('No webhook URL found in environment variables');
+            continue;
+          }
           try {
-            const webhookResponse = await fetch('https://webhook.site/YOUR-UNIQUE-URL', { // just an example
+            const webhookResponse = await fetch(webhookUrl, { // just an example
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
