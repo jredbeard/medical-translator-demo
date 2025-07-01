@@ -27,7 +27,7 @@ interface SOAPSummary {
   assessment: string
   plan: string
   summary: string
-  action: string
+  actions: { type: string; details: string }[]
 }
 
 export default function MedicalTranslationApp() {
@@ -483,7 +483,20 @@ export default function MedicalTranslationApp() {
                   </div>
                   <div className="bg-gray-700 rounded-lg p-4">
                     <h4 className="font-medium text-orange-400 mb-2">Actions & Follow-up</h4>
-                    <p className="text-gray-300">{soapSummary.action}</p>
+                    {soapSummary.actions.length > 0 ? (
+                      <div className="space-y-2">
+                        {soapSummary.actions.map((action, index) => (
+                          <div key={index} className="flex items-start space-x-2">
+                            <span className="text-orange-400 text-sm font-medium min-w-0 flex-shrink-0">
+                              {action.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}:
+                            </span>
+                            <span className="text-gray-300 text-sm">{action.details}</span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-gray-400 text-sm">No actions identified</p>
+                    )}
                   </div>
                 </div>
               </div>
