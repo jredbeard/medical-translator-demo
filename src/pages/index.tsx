@@ -55,6 +55,12 @@ export default function MedicalTranslationApp() {
     sentenceBufferRef.current = sentenceBuffer;
   }, [sentenceBuffer]);
 
+  // use a ref to always have the latest messages
+  const messagesRef = useRef<Message[]>([]);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
   const fetchSessions = async () => {
     try {
       const response = await fetch('/api/sessions')
@@ -134,6 +140,56 @@ export default function MedicalTranslationApp() {
   const processBufferedUtterance = async (utterance: string) => {
     if (!utterance.trim()) return;
     console.log('Processing buffered utterance:', utterance);
+    
+    // Check for repeat requests
+    const repeatPhrases = [
+      'repeat that', 'repeat', 'say that again', 'what did you say', 'can you repeat',
+      'repite eso', 'repite', 'dilo otra vez', 'qué dijiste', 'puedes repetir'
+    ];
+    const isRepeatRequest = repeatPhrases.some(phrase => 
+      utterance.toLowerCase().includes(phrase.toLowerCase())
+    );
+    
+    if (isRepeatRequest) {
+      console.log('Repeat request detected, looking for last doctor message');
+      
+      const lastDoctorMessage = messagesRef.current
+        .slice()
+        .reverse()
+        .find(message => message.speaker === 'Doctor');
+      
+      console.log('Last doctor message found:', lastDoctorMessage);
+      
+      if (lastDoctorMessage) {
+        try {
+          // Replay the doctor's last message via TTS in Spanish
+          const ttsResponse = await fetch('/api/tts', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              text: lastDoctorMessage.translatedText,
+              language: 'es', // Always Spanish since it's the doctor's message
+            }),
+          });
+          if (ttsResponse.ok) {
+            const { audio } = await ttsResponse.json();
+            const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const audioData = Uint8Array.from(atob(audio), c => c.charCodeAt(0));
+            const buffer = await audioContext.decodeAudioData(audioData.buffer);
+            const source = audioContext.createBufferSource();
+            source.buffer = buffer;
+            source.connect(audioContext.destination);
+            source.start(0);
+          }
+        } catch (error) {
+          console.error('Error replaying doctors last message:', error);
+        }
+      } else {
+        console.log('No previous doctor message found to repeat');
+      }
+      return; // don't process as a normal message, return early
+    }
+    
     try {
       const translationResponse = await fetch('/api/translate-text', {
         method: 'POST',
@@ -224,7 +280,7 @@ export default function MedicalTranslationApp() {
           bufferTimeoutRef.current = setTimeout(() => {
             processAndClearBuffer(sentenceBufferRef.current);
             setSentenceBuffer('');
-          }, 5000); // 5 seconds max utterance buffer
+          }, 7000);
         },
         onSilence: () => {
           // On silence, process and clear the buffer only once
