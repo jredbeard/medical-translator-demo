@@ -28,10 +28,6 @@ The summary is generated in SOAP format also in JSON.
 
 The approach admittedly has some bugs, but, is close.
 
-Due to the time constraints and having to completely shift gears, I did not hit these points:
-
-* websocket / actions / scheduler implementation
-* "repeat that" - not possible with this type of setup afaik
 
 BELOW IS AI GENERATED README:
 
