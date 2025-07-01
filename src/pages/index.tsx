@@ -224,7 +224,7 @@ export default function MedicalTranslationApp() {
           bufferTimeoutRef.current = setTimeout(() => {
             processAndClearBuffer(sentenceBufferRef.current);
             setSentenceBuffer('');
-          }, 5000); // 5 seconds max utterance buffer
+          }, 7000);
         },
         onSilence: () => {
           // On silence, process and clear the buffer only once

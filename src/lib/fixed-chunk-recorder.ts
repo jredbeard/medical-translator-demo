@@ -11,8 +11,6 @@ export interface FixedChunkRecorderOptions {
   onSilence?: () => void; // called when a silent/too-short chunk is detected
 }
 
-const MIN_CHUNK_SIZE = 2000; // bytes, discard if smaller (likely silence)
-
 export class FixedChunkRecorder {
   private sessionId: string;
   private chunkIntervalMs: number;
@@ -77,13 +75,8 @@ export class FixedChunkRecorder {
     recorder.onstop = async () => {
       const audioBlob = new Blob(this.chunks, { type: 'audio/webm' });
       console.log('[FixedChunkRecorder] Chunk stopped, size:', audioBlob.size);
-      if (audioBlob.size < MIN_CHUNK_SIZE) {
-        console.log('[FixedChunkRecorder] Discarding silent/too-short chunk');
-        if (this.onSilence) this.onSilence();
-        this.chunks = [];
-        if (this.isRecording) this.startMediaRecorder(stream);
-        return;
-      }
+      
+      // Always send to transcription API, let the LLM determine if it's silence
       const arrayBuffer = await audioBlob.arrayBuffer();
       const base64Audio = this.arrayBufferToBase64(arrayBuffer);
       try {
@@ -96,7 +89,13 @@ export class FixedChunkRecorder {
         if (response.ok) {
           const { transcription } = await response.json();
           console.log('[FixedChunkRecorder] Transcription received:', transcription);
-          if (transcription && transcription.trim()) {
+          
+          // Check if transcription is empty or only whitespace (silence detected by LLM)
+          if (!transcription || !transcription.trim()) {
+            console.log('[FixedChunkRecorder] Empty transcription detected - silence');
+            if (this.onSilence) this.onSilence();
+          } else {
+            // Valid transcription received
             this.transcript = this.transcript ? this.transcript + ' ' + transcription : transcription;
             if (this.onTranscript) this.onTranscript(this.transcript, transcription);
           }
